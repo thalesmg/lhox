@@ -1,55 +1,53 @@
-cabal-version:      2.4
+cabal-version: 2.2
+
+-- This file has been generated from package.yaml by hpack version 0.34.4.
+--
+-- see: https://github.com/sol/hpack
+
 name:               lhox
-version:            0.1.0.0
-
--- A short (one-line) description of the package.
--- synopsis:
-
--- A longer description of the package.
--- description:
-
--- A URL where users can report bugs.
--- bug-reports:
+version:            0.0.0.0
 license:            GPL-3.0-or-later
 license-file:       LICENSE
-author:             Thales Macedo Garitezi
-maintainer:         thalesmg@gmail.com
-
--- A copyright notice.
--- copyright:
--- category:
-extra-source-files: CHANGELOG.md
+build-type:         Simple
+author:             Thales MG
+maintainer:         Thales MG
 
 library
-    exposed-modules:  MyLib
-
-    -- Modules included in this library but not exported.
-    -- other-modules:
-
-    -- LANGUAGE extensions used by modules in this package.
-    -- other-extensions:
-    build-depends:    base ^>=4.14.3.0
-    hs-source-dirs:   src
+    exposed-modules:
+          Lhox.Lexer
+          MyLib
+    other-modules:
+          Paths_lhox
+    build-depends:
+          base
+        , mtl
+        , text
+    hs-source-dirs:
+          src
     default-language: Haskell2010
 
 executable lhox
-    main-is:          Main.hs
-
-    -- Modules included in this executable, other than Main.
-    -- other-modules:
-
-    -- LANGUAGE extensions used by modules in this package.
-    -- other-extensions:
+    main-is: Main.hs
+    other-modules:
+          Paths_lhox
+    hs-source-dirs:
+          app
     build-depends:
-        base ^>=4.14.3.0,
-        lhox
-
-    hs-source-dirs:   app
+          base
+        , lhox
+        , mtl
+        , text
     default-language: Haskell2010
 
-test-suite lhox-test
+test-suite lhox-tests
+    type: exitcode-stdio-1.0
+    main-is: MyLibTest.hs
+    other-modules:
+          Paths_lhox
+    hs-source-dirs:
+          test
+    build-depends:
+          base
+        , mtl
+        , text
     default-language: Haskell2010
-    type:             exitcode-stdio-1.0
-    hs-source-dirs:   test
-    main-is:          MyLibTest.hs
-    build-depends:    base ^>=4.14.3.0
