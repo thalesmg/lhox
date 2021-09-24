@@ -20,6 +20,10 @@ library
           Paths_lhox
     build-depends:
           base
+        , containers
+        , generic-lens
+        , microlens
+        , microlens-mtl
         , mtl
         , text
     hs-source-dirs:
@@ -34,20 +38,31 @@ executable lhox
           app
     build-depends:
           base
+        , containers
+        , generic-lens
         , lhox
+        , microlens
+        , microlens-mtl
         , mtl
         , text
     default-language: Haskell2010
 
 test-suite lhox-tests
     type: exitcode-stdio-1.0
-    main-is: MyLibTest.hs
+    main-is: Main.hs
     other-modules:
           Paths_lhox
     hs-source-dirs:
           test
     build-depends:
           base
+        , containers
+        , generic-lens
+        , lhox
+        , microlens
+        , microlens-mtl
         , mtl
+        , tasty
+        , tasty-hunit
         , text
     default-language: Haskell2010

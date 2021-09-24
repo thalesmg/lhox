@@ -42,6 +42,6 @@ run :: Text -> IO ()
 run code = do
   case Lexer.scanTokens code of
     Left err ->
-      putStrLn "Dang!"
+      putStrLn $ "Dang!\n  " <> show err
     Right tokens ->
       traverse_ print tokens

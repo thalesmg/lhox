@@ -5,8 +5,12 @@ author: Thales MG
 
 dependencies:
   - base
-  - text
+  - containers
+  - generic-lens
+  - microlens
+  - microlens-mtl
   - mtl
+  - text
 
 library:
   source-dirs: src
@@ -20,5 +24,9 @@ executables:
 
 tests:
   lhox-tests:
-    main: MyLibTest.hs
+    main: Main.hs
     source-dirs: test
+    dependencies:
+      - lhox
+      - tasty
+      - tasty-hunit
