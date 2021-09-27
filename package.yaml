@@ -10,6 +10,9 @@ dependencies:
   - microlens
   - microlens-mtl
   - mtl
+  - raw-strings-qq
+  - tasty
+  - tasty-hunit
   - text
 
 library:
@@ -28,5 +31,3 @@ tests:
     source-dirs: test
     dependencies:
       - lhox
-      - tasty
-      - tasty-hunit

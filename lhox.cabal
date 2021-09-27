@@ -15,6 +15,7 @@ maintainer:         Thales MG
 library
     exposed-modules:
           Lhox.Lexer
+          Lhox.Tests
           MyLib
     other-modules:
           Paths_lhox
@@ -25,6 +26,9 @@ library
         , microlens
         , microlens-mtl
         , mtl
+        , raw-strings-qq
+        , tasty
+        , tasty-hunit
         , text
     hs-source-dirs:
           src
@@ -44,6 +48,9 @@ executable lhox
         , microlens
         , microlens-mtl
         , mtl
+        , raw-strings-qq
+        , tasty
+        , tasty-hunit
         , text
     default-language: Haskell2010
 
@@ -62,6 +69,7 @@ test-suite lhox-tests
         , microlens
         , microlens-mtl
         , mtl
+        , raw-strings-qq
         , tasty
         , tasty-hunit
         , text
