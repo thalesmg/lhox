@@ -78,7 +78,10 @@ lexerTests = testGroup "lexer"
   , testCase "single line comment" $
       Lexer.scanTokens "// some comment" @?= Right (Seq.singleton Lexer.EOF)
   , testCase "multi line comments" $
-      let res = Lexer.scanTokens "1 + 2 // end of line comment\n// lonely comment\n10 / 20.1"
+      let res = Lexer.scanTokens [r| 1 + 2 // end of line comment
+                                     // lonely comment
+                                     10 / 20.1
+                                   |]
       in res @?= Right (Seq.fromList [ Lexer.Number 1
                                      , Lexer.Plus
                                      , Lexer.Number 2
@@ -169,4 +172,59 @@ lexerTests = testGroup "lexer"
                                 , Lexer.Identifier "some_foo"
                                 , Lexer.EOF
                                 ])
+  , testCase "single invalid token" $
+      Lexer.scanTokens " @ "
+        @?= Left ( Seq.empty
+                 , Seq.singleton ( Lexer.UnexpectedChar '@'
+                                 , Lexer.MkSrcPosition 1
+                                 )
+                 )
+  , testCase "invalid token after valid" $
+      Lexer.scanTokens "*/.\n-+,@"
+        @?= Left ( Seq.fromList [ Lexer.Star
+                                , Lexer.Slash
+                                , Lexer.Dot
+                                , Lexer.Minus
+                                , Lexer.Plus
+                                , Lexer.Comma
+                                ]
+                 , Seq.singleton ( Lexer.UnexpectedChar '@'
+                                 , Lexer.MkSrcPosition 2
+                                 )
+                 )
+  , testCase "invalid token before valid" $
+      Lexer.scanTokens "@*/.\n-+,"
+        @?= Left ( Seq.fromList [ Lexer.Star
+                                , Lexer.Slash
+                                , Lexer.Dot
+                                , Lexer.Minus
+                                , Lexer.Plus
+                                , Lexer.Comma
+                                ]
+                 , Seq.singleton ( Lexer.UnexpectedChar '@'
+                                 , Lexer.MkSrcPosition 1
+                                 )
+                 )
+  , testCase "invalid token between valid" $
+      Lexer.scanTokens "*/.\n@-+,"
+        @?= Left ( Seq.fromList [ Lexer.Star
+                                , Lexer.Slash
+                                , Lexer.Dot
+                                , Lexer.Minus
+                                , Lexer.Plus
+                                , Lexer.Comma
+                                ]
+                 , Seq.singleton ( Lexer.UnexpectedChar '@'
+                                 , Lexer.MkSrcPosition 2
+                                 )
+                 )
+  , testCase "unterminated string" $
+      Lexer.scanTokens [r|- "unterminated |]
+        @?= Left ( Seq.fromList [ Lexer.Minus
+                                , Lexer.EOF
+                                ]
+                 , Seq.singleton ( Lexer.UnterminatedString
+                                 , Lexer.MkSrcPosition 1
+                                 )
+                 )
   ]

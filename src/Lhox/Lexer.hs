@@ -12,6 +12,7 @@ module Lhox.Lexer
     -- * Types
     Token(..)
   , LexError(..)
+  , SrcPosition(..)
     -- * utilities
   , scanTokens
   ) where
