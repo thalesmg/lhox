@@ -45,7 +45,6 @@ newtype SrcPosition = MkSrcPosition { getSrcPosition :: Int }
 data LexerState =
   MkLexerState { source :: Text
                , position :: SrcPosition
-               , tokens :: Seq Token
                , errors :: Seq (LexError, SrcPosition)
                }
   deriving (Generic, Eq, Show)
@@ -159,7 +158,6 @@ squeezeRemainingErrors remainingState =
 lexerState :: Text -> LexerState
 lexerState src = MkLexerState { source = src
                               , position = MkSrcPosition 1
-                              , tokens = Seq.empty
                               , errors = Seq.empty
                               }
 
