@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE QuasiQuotes       #-}
 
 {- |
   Due to a "bug" (feature?) of cabal <= 3.6.1.0, one cannot load both
@@ -33,12 +33,12 @@
 -}
 module Lhox.Tests where
 
-import qualified Data.Sequence as Seq
-import Test.Tasty (TestTree, defaultMain, testGroup)
-import Test.Tasty.HUnit ((@?=), testCase)
-import Text.RawString.QQ (r)
+import qualified Data.Sequence     as Seq
+import           Test.Tasty        (TestTree, defaultMain, testGroup)
+import           Test.Tasty.HUnit  (testCase, (@?=))
+import           Text.RawString.QQ (r)
 
-import qualified Lhox.Lexer as Lexer
+import qualified Lhox.Lexer        as Lexer
 
 main :: IO ()
 main = defaultMain allTests

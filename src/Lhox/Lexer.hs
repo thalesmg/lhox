@@ -1,9 +1,11 @@
-{-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DerivingVia #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE OverloadedLabels #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BlockArguments        #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE DerivingVia           #-}
+{-# LANGUAGE KindSignatures        #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedLabels      #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE RankNTypes            #-}
 
 module Lhox.Lexer
   (
@@ -14,76 +16,92 @@ module Lhox.Lexer
   , scanTokens
   ) where
 
-import Prelude hiding (takeWhile)
+import           Prelude                   hiding (takeWhile)
 
-import Control.Applicative (Alternative(..))
-import Control.Monad (when)
-import Control.Monad.State (StateT(..))
-import Control.Monad.State.Class (MonadState)
-import Data.Char (isAlpha, isAlphaNum, isDigit)
-import Data.Foldable (foldl')
-import Data.Function ((&))
-import Data.Functor (($>))
-import Data.Generics.Labels ()
-import Data.Map (Map)
-import qualified Data.Map as M
-import Data.Maybe (fromMaybe, isNothing, maybe)
-import Data.Sequence (Seq)
-import qualified Data.Sequence as Seq
-import Data.Text (Text, uncons)
-import qualified Data.Text.Lazy as TL
-import qualified Data.Text.Lazy.Builder as TLB
-import qualified Data.Text as T
-import GHC.Generics (Generic)
-import Lens.Micro ((^.), (.~), to)
-import Lens.Micro.Mtl ((.=), (%=), (<<%=), use)
-import Control.Monad.Except
+import           Control.Applicative       (Alternative (..))
+import           Control.Monad             (when)
+import           Control.Monad.Except
+import           Control.Monad.State       (StateT (..))
+import           Control.Monad.State.Class (MonadState (..))
+import           Data.Char                 (isAlpha, isAlphaNum, isDigit)
+import           Data.Foldable             (foldl')
+import           Data.Function             ((&))
+import           Data.Functor              (($>))
+import           Data.Generics.Labels      ()
+import           Data.Map                  (Map)
+import qualified Data.Map                  as M
+import           Data.Maybe                (fromMaybe, isNothing, maybe)
+import           Data.Sequence             (Seq)
+import qualified Data.Sequence             as Seq
+import           Data.Text                 (Text, uncons)
+import qualified Data.Text                 as T
+import qualified Data.Text.Lazy            as TL
+import qualified Data.Text.Lazy.Builder    as TLB
+import           GHC.Generics              (Generic)
+import           Lens.Micro                (to, (.~), (^.))
+import           Lens.Micro.Mtl            (use, (%=), (.=), (<<%=))
 
 newtype SrcPosition = MkSrcPosition { getSrcPosition :: Int }
   deriving (Eq, Show)
 
 data LexerState =
-  MkLexerState { source :: Text
+  MkLexerState { source   :: Text
                , position :: SrcPosition
-               , errors :: Seq (LexError, SrcPosition)
+               , errors   :: Seq (LexError, SrcPosition)
                }
   deriving (Generic, Eq, Show)
 
-{-
--- TODO
-newtype Lexer' a =
-  MkLexer' {
-    runLexer' :: Text -- remoining source
-              -> SrcPosition -- current position in source code
-              -> Seq Token -- tokens collected so far
-              -> (Text -> SrcPosition -> Seq Token -> a -> Either LexError (Seq Token)) -- success continuation
-              -> (Text -> SrcPosition -> Seq Token -> Text -> Either LexError (Seq Token)) -- failure continuation
-              -> Either LexError (Seq Token)
+newtype Lexer a =
+  MkLexer {
+    runLexer :: forall r. -- final result type
+                LexerState -- current lexer state
+             -> (LexerState -> a -> Either (LexError, SrcPosition) r) -- success continuation
+             -> (LexerState -> LexError -> Either (LexError, SrcPosition) r) -- failure continuation
+             -> Either (LexError, SrcPosition) r
   }
--}
 
-newtype Lexer a = MkLexer { runLexer :: LexerState -> Either LexError (a, LexerState) }
-  deriving
-  ( Functor
-  , Applicative
-  , Monad
-  , MonadState LexerState
-  , MonadError LexError
-  ) via (StateT LexerState (Either LexError))
+instance Functor Lexer where
+  fmap f (MkLexer lxr) = MkLexer \st win lose ->
+    let win' st' a = win st' (f a)
+    in lxr st win' lose
+
+instance Applicative Lexer where
+  pure x = MkLexer \st win lose ->
+    win st x
+
+  (MkLexer lxrf) <*> (MkLexer lxra) = MkLexer \st winb lose ->
+    let winf st' f = runLexer (fmap f (MkLexer lxra)) st' winb lose
+    in lxrf st winf lose
 
 instance Alternative Lexer where
-  empty = MkLexer \_ -> Left (ErrorMessage "empty")
-  (MkLexer l1) <|> (MkLexer l2) = MkLexer \s0 ->
-    case (l1 s0, l2 s0) of
-      (res1, Left _) -> res1
-      (Left _, res2) -> res2
-      (r1@(Right (a1, s1)), r2@(Right (a2, s2))) ->
-        if T.length (source s1) <= T.length (source s2)
-        then r1
-        else r2
+  empty = MkLexer \st _win lose -> lose st (ErrorMessage "empty")
+  (MkLexer l1) <|> (MkLexer l2) = MkLexer \st0 win0 lose0 ->
+    let lose' st' err = l2 st0 win0 lose0
+    in l1 st0 win0 lose'
+
+instance Monad Lexer where
+  (MkLexer lxrm) >>= f = MkLexer \st win lose ->
+    let win' st' a = runLexer (f a) st' win lose
+    in lxrm st win' lose
 
 instance MonadFail Lexer where
-  fail msg = MkLexer \_ -> Left (ErrorMessage (T.pack msg))
+  fail msg = MkLexer \st _win lose -> lose st (ErrorMessage (T.pack msg))
+
+instance MonadState LexerState Lexer where
+  get = MkLexer \st win _lose ->
+    win st st
+
+  put st' = MkLexer \st win _lose ->
+    win st' ()
+
+instance MonadError LexError Lexer where
+  throwError e = MkLexer \st _win lose ->
+    lose st e
+
+  catchError (MkLexer lxr) handler = MkLexer \st win lose ->
+    case lxr st win lose of
+      Left (err, _pos) -> runLexer (handler err) st win lose
+      Right a          -> Right a
 
 data Token =
     LeftParen
@@ -133,10 +151,16 @@ data LexError = ErrorMessage Text
               | UnterminatedString
   deriving (Eq, Show)
 
+winK :: LexerState -> a -> Either (LexError, SrcPosition) (a, LexerState)
+winK st a = Right (a, st)
+
+loseK :: LexerState -> LexError -> Either (LexError, SrcPosition) a
+loseK st err = Left (err, position st)
+
 scanTokens :: Text -> Either (Seq Token, Seq (LexError, SrcPosition)) (Seq Token)
 scanTokens raw =
-  case runLexer (manySeq token ignoredToken <* eof) (lexerState raw) of
-    Left err -> Left (mempty, Seq.singleton (err, MkSrcPosition 0))
+  case runLexer (manySeq token ignoredToken <* eof) (lexerState raw) winK loseK of
+    Left err -> Left (mempty, Seq.singleton err)
     Right (ts, lexst) ->
       if null (errors lexst)
       then Right (ts Seq.|> EOF)
@@ -145,8 +169,8 @@ scanTokens raw =
 
 squeezeRemainingErrors :: LexerState -> Seq (LexError, SrcPosition)
 squeezeRemainingErrors remainingState =
-  case runLexer (many ignoredToken) remainingState of
-    Left err -> Seq.singleton (err, position remainingState)
+  case runLexer (many ignoredToken) remainingState winK loseK of
+    Left err -> Seq.singleton err
     Right (_, lexst) ->
       if T.null (source lexst)
       then errors lexst
@@ -200,12 +224,10 @@ choice :: [Lexer a] -> Lexer a
 choice = foldr (<|>) (fail "choice")
 
 try :: Lexer a -> Lexer (Maybe a)
-try (MkLexer lxr) = MkLexer \s ->
-  case lxr s of
-    Left _ ->
-      Right (Nothing, s)
-    Right (a, s') ->
-      Right (Just a, s')
+try (MkLexer lxr) = MkLexer \st win lose ->
+  let lose' _st' _err = win st Nothing
+      win' st' a = win st' (Just a)
+  in lxr st win' lose'
 
 manySeq :: Lexer a -> Lexer () -> Lexer (Seq a)
 manySeq lxr unk = do
