@@ -15,6 +15,7 @@ maintainer:         Thales MG
 library
     exposed-modules:
           Lhox.Lexer
+          Lhox.Parser
           Lhox.Tests
           MyLib
     other-modules:
@@ -22,11 +23,13 @@ library
     build-depends:
           base
         , containers
+        , data-fix
         , generic-lens
         , microlens
         , microlens-mtl
         , mtl
         , raw-strings-qq
+        , recursion-schemes
         , tasty
         , tasty-hunit
         , text
@@ -43,12 +46,14 @@ executable lhox
     build-depends:
           base
         , containers
+        , data-fix
         , generic-lens
         , lhox
         , microlens
         , microlens-mtl
         , mtl
         , raw-strings-qq
+        , recursion-schemes
         , tasty
         , tasty-hunit
         , text
@@ -64,12 +69,14 @@ test-suite lhox-tests
     build-depends:
           base
         , containers
+        , data-fix
         , generic-lens
         , lhox
         , microlens
         , microlens-mtl
         , mtl
         , raw-strings-qq
+        , recursion-schemes
         , tasty
         , tasty-hunit
         , text

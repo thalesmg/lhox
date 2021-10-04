@@ -6,11 +6,13 @@ author: Thales MG
 dependencies:
   - base
   - containers
+  - data-fix
   - generic-lens
   - microlens
   - microlens-mtl
   - mtl
   - raw-strings-qq
+  - recursion-schemes
   - tasty
   - tasty-hunit
   - text

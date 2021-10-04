@@ -33,12 +33,16 @@
 -}
 module Lhox.Tests where
 
-import qualified Data.Sequence     as Seq
-import           Test.Tasty        (TestTree, defaultMain, testGroup)
-import           Test.Tasty.HUnit  (testCase, (@?=))
-import           Text.RawString.QQ (r)
+import           Data.Fix              (Fix (Fix))
+import           Data.Functor.Foldable (cata)
+import           Data.Functor.Sum      (Sum (..))
+import qualified Data.Sequence         as Seq
+import           Test.Tasty            (TestTree, defaultMain, testGroup)
+import           Test.Tasty.HUnit      (testCase, (@?=))
+import           Text.RawString.QQ     (r)
 
-import qualified Lhox.Lexer        as Lexer
+import qualified Lhox.Lexer            as Lexer
+import qualified Lhox.Parser           as Parser
 
 main :: IO ()
 main = defaultMain allTests
@@ -46,6 +50,7 @@ main = defaultMain allTests
 allTests :: TestTree
 allTests = testGroup "all tests"
   [ lexerTests
+  , aprintTests
   ]
 
 lexerTests :: TestTree
@@ -227,4 +232,24 @@ lexerTests = testGroup "lexer"
                                  , Lexer.MkSrcPosition 1
                                  )
                  )
+  ]
+
+aprintTests :: TestTree
+aprintTests = testGroup "aprint"
+  [ testCase "literal number" $
+      let expr :: Parser.Expr
+          expr = Fix (InL (Parser.MkLitNum 1.23))
+      in cata Parser.aprint expr @?= "1.23"
+  , testCase "literal string" $
+      let expr :: Parser.Expr
+          expr = Fix (InR (InL (Parser.MkLitStr "olá")))
+      in cata Parser.aprint expr @?= "\"olá\""
+  , testCase "unary | negate" $
+      let expr :: Parser.Expr
+          expr = Fix (InR (InR (Parser.MkUnary Parser.Negate (Fix (InL (Parser.MkLitNum 1.23))))))
+      in cata Parser.aprint expr @?= "-1.23"
+  , testCase "unary | not" $
+      let expr :: Parser.Expr
+          expr = Fix (InR (InR (Parser.MkUnary Parser.Not (Fix (InL (Parser.MkLitNum 1.23))))))
+      in cata Parser.aprint expr @?= "!1.23"
   ]
