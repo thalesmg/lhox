@@ -5,17 +5,17 @@ module Lhox.PrintAst where
 import           Data.Functor.Sum (Sum (InL, InR))
 import           Data.Text        (Text, pack)
 
-import           Lhox.Parser      (LitNum (MkLitNum), LitStr (MkLitStr),
-                                   Unary (MkUnary), UnaryOperator (..))
+import           Lhox.Parser      (Literal (..), Unary (MkUnary),
+                                   UnaryOperator (..))
 
 class Functor f => PrintAst f where
   aprint :: f Text -> Text
 
-instance PrintAst LitNum where
-  aprint (MkLitNum n) = pack . show $ n
-
-instance PrintAst LitStr where
-  aprint (MkLitStr t) = "\"" <> t <> "\""
+instance PrintAst Literal where
+  aprint (MkLitNum n)  = pack . show $ n
+  aprint (MkLitStr t)  = "\"" <> t <> "\""
+  aprint (MkLitBool b) = pack . show $ b
+  aprint MkLitNil      = "nil"
 
 instance PrintAst Unary where
   aprint (MkUnary o expr) = showUnaryOp o <> expr

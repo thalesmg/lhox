@@ -16,6 +16,7 @@ library
     exposed-modules:
           Lhox.Lexer
           Lhox.Parser
+          Lhox.PrintAst
           Lhox.Tests
           Lhox.YoctoParsec
           MyLib

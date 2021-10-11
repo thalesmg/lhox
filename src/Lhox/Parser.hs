@@ -34,9 +34,10 @@ instance YParsec.Stream (Seq L.Token) where
 infixr 6 :+:
 type (f :+: g) = Sum f g
 
-newtype LitNum e = MkLitNum Double
-  deriving (Eq, Functor)
-newtype LitStr e = MkLitStr Text
+data Literal e = MkLitNum Double
+                  | MkLitStr Text
+                  | MkLitBool Bool
+                  | MkLitNil
   deriving (Eq, Functor)
 data Unary e = MkUnary UnaryOperator e
   deriving (Eq, Functor)
@@ -57,28 +58,29 @@ data BinaryOperator = Equals
                     | DividedBy
   deriving (Eq, Show)
 
-instance Eq1 LitNum where
-  liftEq _ (MkLitNum x1) (MkLitNum x2) = x1 == x2
-
-instance Eq1 LitStr where
-  liftEq _ (MkLitStr x1) (MkLitStr x2) = x1 == x2
+instance Eq1 Literal where
+  liftEq _ (MkLitNum x1) (MkLitNum x2)   = x1 == x2
+  liftEq _ (MkLitStr x1) (MkLitStr x2)   = x1 == x2
+  liftEq _ (MkLitBool x1) (MkLitBool x2) = x1 == x2
+  liftEq _ MkLitNil MkLitNil             = True
+  liftEq _ _ _                           = False
 
 instance Eq1 Unary where
   liftEq f (MkUnary o1 e1) (MkUnary o2 e2) =
     o1 == o2 && f e1 e2
 
-instance Show1 LitNum where
-  liftShowsPrec sp sl d (MkLitNum x) = showsPrec d x
-
-instance Show1 LitStr where
-  liftShowsPrec sp sl d (MkLitStr s) = showsPrec d s
+instance Show1 Literal where
+  liftShowsPrec sp sl d (MkLitNum x)  = showsPrec d x
+  liftShowsPrec sp sl d (MkLitStr s)  = showsPrec d s
+  liftShowsPrec sp sl d (MkLitBool b) = showsPrec d b
+  liftShowsPrec sp sl d MkLitNil      = (<>) "nil"
 
 instance Show1 Unary where
   liftShowsPrec sp sl d (MkUnary op e) =
     showsPrec d op . (<>) " " . sp d e
 
 type ExprF f = Fix f
-type Expr = ExprF (LitNum :+: LitStr :+: Unary)
+type Expr = ExprF (Literal :+: Unary)
 
 -- * Expression helpers
 
@@ -86,10 +88,16 @@ litNum :: Double -> Expr
 litNum = Fix . InL . MkLitNum
 
 litStr :: Text -> Expr
-litStr = Fix . InR . InL . MkLitStr
+litStr = Fix . InL . MkLitStr
+
+litBool :: Bool -> Expr
+litBool = Fix . InL . MkLitBool
+
+litNil :: Expr
+litNil = Fix . InL $ MkLitNil
 
 unary :: UnaryOperator -> Expr -> Expr
-unary op e = Fix . InR . InR $ MkUnary op e
+unary op e = Fix . InR $ MkUnary op e
 
 -- * Parsing utilities
 
