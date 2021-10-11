@@ -56,81 +56,127 @@ allTests = testGroup "all tests"
 lexerTests :: TestTree
 lexerTests = testGroup "lexer"
   [ testCase "empty string" $
-      Lexer.scanTokens "" @?= Right (Seq.singleton Lexer.EOF)
+      Lexer.scanTokens "" @?= Right (Seq.singleton (Lexer.MkToken Lexer.EOF
+                                                      (Lexer.MkSrcPosition 1)))
   , testCase "operators" $
       Lexer.scanTokens "(){},.-+;*/ ! != = == < <= > >="
-        @?= Right (Seq.fromList [ Lexer.LeftParen
-                                , Lexer.RightParen
-                                , Lexer.LeftBrace
-                                , Lexer.RightBrace
-                                , Lexer.Comma
-                                , Lexer.Dot
-                                , Lexer.Minus
-                                , Lexer.Plus
-                                , Lexer.Semicolon
-                                , Lexer.Star
-                                , Lexer.Slash
-                                , Lexer.Bang
-                                , Lexer.BangEqual
-                                , Lexer.Equal
-                                , Lexer.EqualEqual
-                                , Lexer.Less
-                                , Lexer.LessEqual
-                                , Lexer.Greater
-                                , Lexer.GreaterEqual
-                                , Lexer.EOF
+        @?= Right (Seq.fromList [ Lexer.MkToken Lexer.LeftParen
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.RightParen
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.LeftBrace
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.RightBrace
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.Comma
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.Dot
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.Minus
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.Plus
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.Semicolon
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.Star
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.Slash
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.Bang
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.BangEqual
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.Equal
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.EqualEqual
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.Less
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.LessEqual
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.Greater
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.GreaterEqual
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.EOF
+                                    (Lexer.MkSrcPosition 1)
                                 ])
   , testCase "single line comment" $
-      Lexer.scanTokens "// some comment" @?= Right (Seq.singleton Lexer.EOF)
+      Lexer.scanTokens "// some comment" @?= Right (Seq.singleton
+                                                    (Lexer.MkToken Lexer.EOF
+                                                       (Lexer.MkSrcPosition 1)))
   , testCase "multi line comments" $
       let res = Lexer.scanTokens [r| 1 + 2 // end of line comment
                                      // lonely comment
                                      10 / 20.1
                                    |]
-      in res @?= Right (Seq.fromList [ Lexer.Number 1
-                                     , Lexer.Plus
-                                     , Lexer.Number 2
-                                     , Lexer.Number 10
-                                     , Lexer.Slash
-                                     , Lexer.Number 20.1
-                                     , Lexer.EOF
+      in res @?= Right (Seq.fromList [ Lexer.MkToken (Lexer.Number 1)
+                                         (Lexer.MkSrcPosition 1)
+                                     , Lexer.MkToken Lexer.Plus
+                                         (Lexer.MkSrcPosition 1)
+                                     , Lexer.MkToken (Lexer.Number 2)
+                                         (Lexer.MkSrcPosition 1)
+                                     , Lexer.MkToken (Lexer.Number 10)
+                                         (Lexer.MkSrcPosition 3)
+                                     , Lexer.MkToken Lexer.Slash
+                                         (Lexer.MkSrcPosition 3)
+                                     , Lexer.MkToken (Lexer.Number 20.1)
+                                         (Lexer.MkSrcPosition 3)
+                                     , Lexer.MkToken Lexer.EOF
+                                         (Lexer.MkSrcPosition 4)
                                      ])
   , testCase "string literal" $
       Lexer.scanTokens "\"some string\""
-        @?= Right (Seq.fromList [ Lexer.StringTk "some string"
-                                , Lexer.EOF
+        @?= Right (Seq.fromList [ Lexer.MkToken (Lexer.StringTk "some string")
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.EOF
+                                    (Lexer.MkSrcPosition 1)
                                 ])
   , testCase "string literal with newline" $
       Lexer.scanTokens "\"some \n string\""
-        @?= Right (Seq.fromList [ Lexer.StringTk "some \n string"
-                                , Lexer.EOF
+        @?= Right (Seq.fromList [ Lexer.MkToken (Lexer.StringTk "some \n string")
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.EOF
+                                    (Lexer.MkSrcPosition 2)
                                 ])
   , testCase "string literal spaces around" $
       Lexer.scanTokens "  \"some string\"  "
-        @?= Right (Seq.fromList [ Lexer.StringTk "some string"
-                                , Lexer.EOF
+        @?= Right (Seq.fromList [ Lexer.MkToken (Lexer.StringTk "some string")
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.EOF
+                                    (Lexer.MkSrcPosition 1)
                                 ])
   , testCase "number literal | integer" $
       Lexer.scanTokens "1234"
-        @?= Right (Seq.fromList [ Lexer.Number 1234
-                                , Lexer.EOF
+        @?= Right (Seq.fromList [ Lexer.MkToken (Lexer.Number 1234)
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.EOF
+                                    (Lexer.MkSrcPosition 1)
                                 ])
   , testCase "number literal | float" $
       Lexer.scanTokens "1234.5678"
-        @?= Right (Seq.fromList [ Lexer.Number 1234.5678
-                                , Lexer.EOF
+        @?= Right (Seq.fromList [ Lexer.MkToken (Lexer.Number 1234.5678)
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.EOF
+                                    (Lexer.MkSrcPosition 1)
                                 ])
   , testCase "wrong number | dot before int" $
       Lexer.scanTokens ".5678"
-        @?= Right (Seq.fromList [ Lexer.Dot
-                                , Lexer.Number 5678
-                                , Lexer.EOF
+        @?= Right (Seq.fromList [ Lexer.MkToken Lexer.Dot
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken (Lexer.Number 5678)
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.EOF
+                                    (Lexer.MkSrcPosition 1)
                                 ])
   , testCase "wrong number | dot after int" $
       Lexer.scanTokens "1234."
-        @?= Right (Seq.fromList [ Lexer.Number 1234
-                                , Lexer.Dot
-                                , Lexer.EOF
+        @?= Right (Seq.fromList [ Lexer.MkToken (Lexer.Number 1234)
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.Dot
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.EOF
+                                    (Lexer.MkSrcPosition 1)
                                 ])
   , testCase "identifier | reserved" $
       let input = [r| and
@@ -151,31 +197,53 @@ lexerTests = testGroup "lexer"
                       while
                     |]
       in Lexer.scanTokens input
-        @?= Right (Seq.fromList [ Lexer.And
-                                , Lexer.Class
-                                , Lexer.Else
-                                , Lexer.FalseTk
-                                , Lexer.For
-                                , Lexer.Fun
-                                , Lexer.If
-                                , Lexer.Nil
-                                , Lexer.Or
-                                , Lexer.Print
-                                , Lexer.Return
-                                , Lexer.Super
-                                , Lexer.This
-                                , Lexer.TrueTk
-                                , Lexer.Var
-                                , Lexer.While
-                                , Lexer.EOF
+        @?= Right (Seq.fromList [ Lexer.MkToken Lexer.And
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.Class
+                                    (Lexer.MkSrcPosition 2)
+                                , Lexer.MkToken Lexer.Else
+                                    (Lexer.MkSrcPosition 3)
+                                , Lexer.MkToken Lexer.FalseTk
+                                    (Lexer.MkSrcPosition 4)
+                                , Lexer.MkToken Lexer.For
+                                    (Lexer.MkSrcPosition 5)
+                                , Lexer.MkToken Lexer.Fun
+                                    (Lexer.MkSrcPosition 6)
+                                , Lexer.MkToken Lexer.If
+                                    (Lexer.MkSrcPosition 7)
+                                , Lexer.MkToken Lexer.Nil
+                                    (Lexer.MkSrcPosition 8)
+                                , Lexer.MkToken Lexer.Or
+                                    (Lexer.MkSrcPosition 9)
+                                , Lexer.MkToken Lexer.Print
+                                    (Lexer.MkSrcPosition 10)
+                                , Lexer.MkToken Lexer.Return
+                                    (Lexer.MkSrcPosition 11)
+                                , Lexer.MkToken Lexer.Super
+                                    (Lexer.MkSrcPosition 12)
+                                , Lexer.MkToken Lexer.This
+                                    (Lexer.MkSrcPosition 13)
+                                , Lexer.MkToken Lexer.TrueTk
+                                    (Lexer.MkSrcPosition 14)
+                                , Lexer.MkToken Lexer.Var
+                                    (Lexer.MkSrcPosition 15)
+                                , Lexer.MkToken Lexer.While
+                                    (Lexer.MkSrcPosition 16)
+                                , Lexer.MkToken Lexer.EOF
+                                    (Lexer.MkSrcPosition 17)
                                 ])
   , testCase "identifier | user defined" $
       Lexer.scanTokens "foo _bar foo123 some_foo"
-        @?= Right (Seq.fromList [ Lexer.Identifier "foo"
-                                , Lexer.Identifier "_bar"
-                                , Lexer.Identifier "foo123"
-                                , Lexer.Identifier "some_foo"
-                                , Lexer.EOF
+        @?= Right (Seq.fromList [ Lexer.MkToken (Lexer.Identifier "foo")
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken (Lexer.Identifier "_bar")
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken (Lexer.Identifier "foo123")
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken (Lexer.Identifier "some_foo")
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.EOF
+                                    (Lexer.MkSrcPosition 1)
                                 ])
   , testCase "single invalid token" $
       Lexer.scanTokens " @ "
@@ -186,12 +254,18 @@ lexerTests = testGroup "lexer"
                  )
   , testCase "invalid token after valid" $
       Lexer.scanTokens "*/.\n-+,@"
-        @?= Left ( Seq.fromList [ Lexer.Star
-                                , Lexer.Slash
-                                , Lexer.Dot
-                                , Lexer.Minus
-                                , Lexer.Plus
-                                , Lexer.Comma
+        @?= Left ( Seq.fromList [ Lexer.MkToken Lexer.Star
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.Slash
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.Dot
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.Minus
+                                    (Lexer.MkSrcPosition 2)
+                                , Lexer.MkToken Lexer.Plus
+                                    (Lexer.MkSrcPosition 2)
+                                , Lexer.MkToken Lexer.Comma
+                                    (Lexer.MkSrcPosition 2)
                                 ]
                  , Seq.singleton ( Lexer.UnexpectedChar '@'
                                  , Lexer.MkSrcPosition 2
@@ -199,12 +273,18 @@ lexerTests = testGroup "lexer"
                  )
   , testCase "invalid token before valid" $
       Lexer.scanTokens "@*/.\n-+,"
-        @?= Left ( Seq.fromList [ Lexer.Star
-                                , Lexer.Slash
-                                , Lexer.Dot
-                                , Lexer.Minus
-                                , Lexer.Plus
-                                , Lexer.Comma
+        @?= Left ( Seq.fromList [ Lexer.MkToken Lexer.Star
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.Slash
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.Dot
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.Minus
+                                    (Lexer.MkSrcPosition 2)
+                                , Lexer.MkToken Lexer.Plus
+                                    (Lexer.MkSrcPosition 2)
+                                , Lexer.MkToken Lexer.Comma
+                                    (Lexer.MkSrcPosition 2)
                                 ]
                  , Seq.singleton ( Lexer.UnexpectedChar '@'
                                  , Lexer.MkSrcPosition 1
@@ -212,12 +292,18 @@ lexerTests = testGroup "lexer"
                  )
   , testCase "invalid token between valid" $
       Lexer.scanTokens "*/.\n@-+,"
-        @?= Left ( Seq.fromList [ Lexer.Star
-                                , Lexer.Slash
-                                , Lexer.Dot
-                                , Lexer.Minus
-                                , Lexer.Plus
-                                , Lexer.Comma
+        @?= Left ( Seq.fromList [ Lexer.MkToken Lexer.Star
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.Slash
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.Dot
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.Minus
+                                    (Lexer.MkSrcPosition 2)
+                                , Lexer.MkToken Lexer.Plus
+                                    (Lexer.MkSrcPosition 2)
+                                , Lexer.MkToken Lexer.Comma
+                                    (Lexer.MkSrcPosition 2)
                                 ]
                  , Seq.singleton ( Lexer.UnexpectedChar '@'
                                  , Lexer.MkSrcPosition 2
@@ -225,8 +311,10 @@ lexerTests = testGroup "lexer"
                  )
   , testCase "unterminated string" $
       Lexer.scanTokens [r|- "unterminated |]
-        @?= Left ( Seq.fromList [ Lexer.Minus
-                                , Lexer.EOF
+        @?= Left ( Seq.fromList [ Lexer.MkToken Lexer.Minus
+                                    (Lexer.MkSrcPosition 1)
+                                , Lexer.MkToken Lexer.EOF
+                                    (Lexer.MkSrcPosition 1)
                                 ]
                  , Seq.singleton ( Lexer.UnterminatedString
                                  , Lexer.MkSrcPosition 1

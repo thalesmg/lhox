@@ -11,6 +11,7 @@ module Lhox.Lexer
   (
     -- * Types
     Token(..)
+  , TokenType(..)
   , LexError(..)
   , SrcPosition(..)
     -- * utilities
@@ -104,7 +105,12 @@ instance MonadError LexError Lexer where
       Left (err, _pos) -> runLexer (handler err) st win lose
       Right a          -> Right a
 
-data Token =
+data Token = MkToken { tokenType :: TokenType
+                     , tokenPos  :: SrcPosition
+                     }
+  deriving (Eq, Show)
+
+data TokenType =
     LeftParen
   | RightParen
   | LeftBrace
@@ -164,7 +170,7 @@ scanTokens raw =
     Left err -> Left (mempty, Seq.singleton err)
     Right (ts, lexst) ->
       if null (errors lexst)
-      then Right (ts Seq.|> EOF)
+      then Right (ts Seq.|> MkToken EOF (position lexst))
       else let moreErrors = squeezeRemainingErrors (lexst & #errors .~ Seq.empty)
            in Left (ts, errors lexst <> moreErrors)
 
@@ -185,6 +191,9 @@ lexerState src = MkLexerState { source = src
                               , position = MkSrcPosition 1
                               , errors = Seq.empty
                               }
+
+getLexerPosition :: Lexer SrcPosition
+getLexerPosition = MkLexer \st win _lose -> win st (position st)
 
 increaseLine :: Lexer ()
 increaseLine = #position %= \(MkSrcPosition l) -> MkSrcPosition (l + 1)
@@ -292,6 +301,9 @@ ignoredToken =
 whitespace :: Lexer ()
 whitespace = satisfy (`elem` [' ', '\t', '\r', '\n']) $> ()
 
+mkToken :: TokenType -> Lexer Token
+mkToken tt = MkToken tt <$> getLexerPosition
+
 eol :: Lexer ()
 eol = single '\n' $> ()
 
@@ -299,7 +311,7 @@ eof :: Lexer Token
 eof = do
   atEnd <- isAtEnd
   guard atEnd
-  pure EOF
+  mkToken EOF
 
 anyChar :: Lexer Char
 anyChar = satisfy (const True)
@@ -354,61 +366,61 @@ string txt = case uncons txt of
     pure txt
 
 leftParen :: Lexer Token
-leftParen = single '(' $> LeftParen
+leftParen = single '(' *> mkToken LeftParen
 
 rightParen :: Lexer Token
-rightParen = single ')' $> RightParen
+rightParen = single ')' *> mkToken RightParen
 
 leftBrace :: Lexer Token
-leftBrace = single '{' $> LeftBrace
+leftBrace = single '{' *> mkToken LeftBrace
 
 rightBrace :: Lexer Token
-rightBrace = single '}' $> RightBrace
+rightBrace = single '}' *> mkToken RightBrace
 
 comma :: Lexer Token
-comma = single ',' $> Comma
+comma = single ',' *> mkToken Comma
 
 dot :: Lexer Token
-dot = single '.' $> Dot
+dot = single '.' *> mkToken Dot
 
 semicolon :: Lexer Token
-semicolon = single ';' $> Semicolon
+semicolon = single ';' *> mkToken Semicolon
 
 minus :: Lexer Token
-minus = single '-' $> Minus
+minus = single '-' *> mkToken Minus
 
 plus :: Lexer Token
-plus = single '+' $> Plus
+plus = single '+' *> mkToken Plus
 
 star :: Lexer Token
-star = single '*' $> Star
+star = single '*' *> mkToken Star
 
 slash :: Lexer Token
 slash = do
   single '/'
   c <- peek
   guard (c /= Just '/')
-  pure Slash
+  mkToken Slash
 
 bangOrBangEqual :: Lexer Token
 bangOrBangEqual =
-      (single '!' >> single '=' $> BangEqual)
-  <|> (single '!' $> Bang)
+      (single '!' >> single '=' *> mkToken BangEqual)
+  <|> (single '!' *> mkToken Bang)
 
 equalOrEqualEqual :: Lexer Token
 equalOrEqualEqual =
-      (single '=' >> single '=' $> EqualEqual)
-  <|> (single '=' $> Equal)
+      (single '=' >> single '=' *> mkToken EqualEqual)
+  <|> (single '=' *> mkToken Equal)
 
 lessOrLessEqual :: Lexer Token
 lessOrLessEqual =
-      (single '<' >> single '=' $> LessEqual)
-  <|> (single '<' $> Less)
+      (single '<' >> single '=' *> mkToken LessEqual)
+  <|> (single '<' *> mkToken Less)
 
 greaterOrGreaterEqual :: Lexer Token
 greaterOrGreaterEqual =
-      (single '>' >> single '=' $> GreaterEqual)
-  <|> (single '>' $> Greater)
+      (single '>' >> single '=' *> mkToken GreaterEqual)
+  <|> (single '>' *> mkToken Greater)
 
 comment :: Lexer ()
 comment = do
@@ -419,15 +431,16 @@ comment = do
 stringLiteral :: Lexer Token
 stringLiteral = do
   single '"'
+  startPos <- getLexerPosition
   txt <- takeWhile (/= '"')
   end <- isAtEnd
   if end
     then do
       appendError UnterminatedString
-      pure EOF
+      mkToken EOF
     else do
       single '"'
-      pure (StringTk txt)
+      pure $ MkToken (StringTk txt) startPos
 
 digit :: Lexer Char
 digit = satisfy isDigit
@@ -440,9 +453,9 @@ numberLiteral = do
     some digit
   let fractionalPart = maybe "" ('.' :) mFractionalPart
       num = read $ integerPart <> fractionalPart
-  pure (Number num)
+  mkToken (Number num)
 
-keywords :: Map Text Token
+keywords :: Map Text TokenType
 keywords =
   M.fromList [ ("and", And)
              , ("class", Class)
@@ -469,4 +482,4 @@ identifier = do
   let identRaw = T.singleton t <> xt
       mkeyword = M.lookup identRaw keywords
       ident = fromMaybe (Identifier identRaw) mkeyword
-  pure ident
+  mkToken ident
