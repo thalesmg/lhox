@@ -6,6 +6,7 @@
 {-# LANGUAGE OverloadedLabels      #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE TypeFamilies          #-}
 
 module Lhox.Lexer
   (
@@ -45,18 +46,17 @@ import           GHC.Generics              (Generic)
 import           Lens.Micro                (to, (.~), (^.))
 import           Lens.Micro.Mtl            (use, (%=), (.=), (<<%=))
 
-import           Lhox.YoctoParsec          (try)
+import           Lhox.YoctoParsec          (isAtEnd, peek, try)
 import qualified Lhox.YoctoParsec          as YParsec
 
 
-type LexerState = YParsec.ParsecState Text YParsec.SrcPosition Void
-
-type Lexer a = YParsec.Parsec Text YParsec.SrcPosition Void a
-
+type Position = YParsec.SrcPosition
+type LexerState = YParsec.ParsecState Text Position Void
+type Lexer a = YParsec.Parsec Text Position Void a
 type LexError = YParsec.ParserError Void
 
 data Token = MkToken { tokenType :: TokenType
-                     , tokenPos  :: YParsec.SrcPosition
+                     , tokenPos  :: Position
                      }
   deriving (Eq, Show)
 
@@ -102,6 +102,21 @@ data TokenType =
   | EOF
   deriving (Eq, Show)
 
+instance YParsec.Stream Text where
+  type Element Text = Char
+  type Elements Text = Text
+  lookahead = uncons
+
+succPos :: Char -> Position -> Position
+succPos '\n' (YParsec.MkSrcPosition n) = YParsec.MkSrcPosition $ n + 1
+succPos _ pos                          = pos
+
+advance :: Lexer Char
+advance = YParsec.advance succPos
+
+satisfy :: (Char -> Bool) -> Lexer Char
+satisfy = YParsec.satisfy succPos
+
 scanTokens :: Text -> Either (Seq Token, Seq (LexError, YParsec.SrcPosition)) (Seq Token)
 scanTokens raw =
   case YParsec.runParsec (manySeq token ignoredToken <* eof)
@@ -134,21 +149,25 @@ lexerState src = YParsec.MkParsecState { YParsec.source = src
 increaseLine :: Lexer ()
 increaseLine = #position %= \(YParsec.MkSrcPosition l) -> YParsec.MkSrcPosition (l + 1)
 
-peek :: Lexer (Maybe Char)
-peek = use (#source . to (fmap fst . uncons))
+-- FIXME: I believe I'd have to use a MonadParse like MegaParsec's to
+-- link this with YParsec...
+-- peek :: Lexer (Maybe Char)
+-- peek = use (#source . to (fmap fst . uncons))
 
-advance :: Lexer Char
-advance = do
-  mcs <- use (#source . to uncons)
-  case mcs of
-    Nothing -> YParsec.throwParserError YParsec.UnexpectedEOF
-    Just (c, src') -> do
-      #source .= src'
-      when (c == '\n') increaseLine
-      pure c
+-- FIXME: I believe I'd have to use a MonadParse like MegaParsec's to
+-- link this with YParsec...
+-- advance :: Lexer Char
+-- advance = do
+--   mcs <- use (#source . to uncons)
+--   case mcs of
+--     Nothing -> YParsec.throwParserError YParsec.UnexpectedEOF
+--     Just (c, src') -> do
+--       #source .= src'
+--       when (c == '\n') increaseLine
+--       pure c
 
-isAtEnd :: Lexer Bool
-isAtEnd = isNothing <$> peek
+-- isAtEnd :: Lexer Bool
+-- isAtEnd = isNothing <$> YParsec.peek
 
 toLexError :: YParsec.CommonError -> LexError
 toLexError = YParsec.MkParserError . Left
@@ -158,16 +177,16 @@ appendError err = do
   pos <- use #position
   #errors %= (Seq.|> (toLexError err, pos))
 
-satisfy :: (Char -> Bool) -> Lexer Char
-satisfy p = do
-  mc <- peek
-  case mc of
-    Nothing ->
-      YParsec.throwParserError YParsec.UnexpectedEOF
-    Just c ->
-      if p c
-      then advance
-      else fail "satisfy"
+-- satisfy :: (Char -> Bool) -> Lexer Char
+-- satisfy p = do
+--   mc <- peek
+--   case mc of
+--     Nothing ->
+--       YParsec.throwParserError YParsec.UnexpectedEOF
+--     Just c ->
+--       if p c
+--       then advance
+--       else fail "satisfy"
 
 choice :: [Lexer a] -> Lexer a
 choice = foldr (<|>) (fail "choice")
@@ -272,7 +291,7 @@ takeUntilM p = go (TLB.fromText "")
       case mc of
         -- fails on lack of input because it did not get to see the
         -- end condition
-        Nothing -> fail "takeUntil"
+        Nothing -> fail "takeUntilM"
         Just c -> do
           sat <- p c
           if sat
@@ -287,6 +306,8 @@ unknown = do
   c <- anyChar
   appendError (YParsec.UnexpectedChar c)
 
+-- FIXME: I believe I'd have to use a MonadParse like MegaParsec's to
+-- link this with YParsec...
 single :: Char -> Lexer Char
 single c = satisfy (== c)
 

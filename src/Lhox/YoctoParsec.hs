@@ -15,23 +15,32 @@ module Lhox.YoctoParsec
   , CommonError(..)
   , ParsecState(..)
   , Parsec(..)
+  , Stream(..)
     -- * Helpers
   , winK
   , loseK
   , try
   , getParsecPosition
   , throwParserError
+  , peek
+  , advance
+  , satisfy
+  , isAtEnd
   )
   where
 
 import           Control.Applicative       (Alternative (..))
 import           Control.Monad.Except      (MonadError (..))
 import           Control.Monad.State.Class (MonadState (..))
+import           Data.Generics.Labels      ()
+import           Data.Maybe                (fromMaybe, isNothing, maybe)
 import           Data.Sequence             (Seq)
 import qualified Data.Sequence             as Seq
 import           Data.Text                 (Text, uncons)
 import qualified Data.Text                 as T
 import           GHC.Generics              (Generic)
+import           Lens.Micro                (to)
+import           Lens.Micro.Mtl            (use, (%=), (.=))
 
 
 newtype SrcPosition = MkSrcPosition { getSrcPosition :: Int }
@@ -106,6 +115,11 @@ instance MonadError (ParserError e) (Parsec s p e) where
       Left (err, _pos) -> runParsec (handler err) st win lose
       Right a          -> Right a
 
+class Stream s where
+  type Element s
+  type Elements s
+  lookahead :: s -> Maybe (Element s, s)
+
 -- | Success final continuation
 winK :: ParsecState s p e -> a -> Either (ParserError e, p) (a, ParsecState s p e)
 winK st a = Right (a, st)
@@ -127,3 +141,30 @@ getParsecPosition = MkParsec \st win _lose -> win st (position st)
 
 throwParserError :: CommonError -> Parsec s p e a
 throwParserError = throwError . MkParserError . Left
+
+peek :: (Stream s) => Parsec s e p (Maybe (Element s))
+peek = fmap fst <$> use (#source . to lookahead)
+
+advance :: (Stream s) => (Element s -> p -> p) -> Parsec s p e (Element s)
+advance updatePos = do
+  mcs <- use (#source . to lookahead)
+  case mcs of
+    Nothing -> throwParserError UnexpectedEOF
+    Just (c, src') -> do
+      #source .= src'
+      #position %= updatePos c
+      pure c
+
+satisfy :: (Stream s) => (Element s -> p -> p) -> (Element s -> Bool) -> Parsec s p e (Element s)
+satisfy updatePos p = do
+  mc <- use (#source . to lookahead)
+  case mc of
+    Nothing ->
+      throwParserError UnexpectedEOF
+    Just (c, _) ->
+      if p c
+      then advance updatePos
+      else fail "satisfy"
+
+isAtEnd :: (Stream s) => Parsec s p e Bool
+isAtEnd = isNothing <$> peek
