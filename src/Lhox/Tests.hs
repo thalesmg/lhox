@@ -43,6 +43,7 @@ import           Text.RawString.QQ     (r)
 
 import qualified Lhox.Lexer            as Lexer
 import qualified Lhox.Parser           as Parser
+import qualified Lhox.PrintAst         as PrintAst
 import qualified Lhox.YoctoParsec      as YParsec
 
 main :: IO ()
@@ -51,6 +52,7 @@ main = defaultMain allTests
 allTests :: TestTree
 allTests = testGroup "all tests"
   [ lexerTests
+  , parserTests
   , aprintTests
   ]
 
@@ -323,22 +325,39 @@ lexerTests = testGroup "lexer"
                  )
   ]
 
+parserTests :: TestTree
+parserTests = testGroup "parser"
+  [ testGroup "primary"
+      [ testCase "number" $
+          Parser.parse (Seq.singleton . toToken $ Lexer.Number 1.234)
+            @?= Right (Parser.litNum 1.234)
+      , testCase "string" $
+          Parser.parse (Seq.singleton . toToken $ Lexer.StringTk "some string")
+            @?= Right (Parser.litStr "some string")
+      ]
+  ]
+
 aprintTests :: TestTree
 aprintTests = testGroup "aprint"
   [ testCase "literal number" $
       let expr :: Parser.Expr
-          expr = Fix (InL (Parser.MkLitNum 1.23))
-      in cata Parser.aprint expr @?= "1.23"
+          expr = Parser.litNum 1.23
+      in cata PrintAst.aprint expr @?= "1.23"
   , testCase "literal string" $
       let expr :: Parser.Expr
-          expr = Fix (InR (InL (Parser.MkLitStr "olá")))
-      in cata Parser.aprint expr @?= "\"olá\""
+          expr = Parser.litStr "olá"
+      in cata PrintAst.aprint expr @?= "\"olá\""
   , testCase "unary | negate" $
       let expr :: Parser.Expr
-          expr = Fix (InR (InR (Parser.MkUnary Parser.Negate (Fix (InL (Parser.MkLitNum 1.23))))))
-      in cata Parser.aprint expr @?= "-1.23"
+          expr = Parser.unary Parser.Negate (Parser.litNum 1.23)
+      in cata PrintAst.aprint expr @?= "-1.23"
   , testCase "unary | not" $
       let expr :: Parser.Expr
-          expr = Fix (InR (InR (Parser.MkUnary Parser.Not (Fix (InL (Parser.MkLitNum 1.23))))))
-      in cata Parser.aprint expr @?= "!1.23"
+          expr = Parser.unary Parser.Not (Parser.litNum 1.23)
+      in cata PrintAst.aprint expr @?= "!1.23"
   ]
+
+-- helpers
+
+toToken :: Lexer.TokenType -> Lexer.Token
+toToken tt = Lexer.MkToken tt (YParsec.MkSrcPosition 1)

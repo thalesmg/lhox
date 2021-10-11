@@ -26,6 +26,7 @@ module Lhox.YoctoParsec
   , advance
   , satisfy
   , isAtEnd
+  , choice
   )
   where
 
@@ -168,3 +169,6 @@ satisfy updatePos p = do
 
 isAtEnd :: (Stream s) => Parsec s p e Bool
 isAtEnd = isNothing <$> peek
+
+choice :: [Parsec s p e a] -> Parsec s p e a
+choice = foldr (<|>) (fail "choice")

@@ -46,7 +46,7 @@ import           GHC.Generics              (Generic)
 import           Lens.Micro                (to, (.~), (^.))
 import           Lens.Micro.Mtl            (use, (%=), (.=), (<<%=))
 
-import           Lhox.YoctoParsec          (isAtEnd, peek, try)
+import           Lhox.YoctoParsec          (choice, isAtEnd, peek, try)
 import qualified Lhox.YoctoParsec          as YParsec
 
 
@@ -117,7 +117,7 @@ advance = YParsec.advance succPos
 satisfy :: (Char -> Bool) -> Lexer Char
 satisfy = YParsec.satisfy succPos
 
-scanTokens :: Text -> Either (Seq Token, Seq (LexError, YParsec.SrcPosition)) (Seq Token)
+scanTokens :: Text -> Either (Seq Token, Seq (LexError, Position)) (Seq Token)
 scanTokens raw =
   case YParsec.runParsec (manySeq token ignoredToken <* eof)
          (lexerState raw) YParsec.winK YParsec.loseK of
@@ -176,20 +176,6 @@ appendError :: YParsec.CommonError -> Lexer ()
 appendError err = do
   pos <- use #position
   #errors %= (Seq.|> (toLexError err, pos))
-
--- satisfy :: (Char -> Bool) -> Lexer Char
--- satisfy p = do
---   mc <- peek
---   case mc of
---     Nothing ->
---       YParsec.throwParserError YParsec.UnexpectedEOF
---     Just c ->
---       if p c
---       then advance
---       else fail "satisfy"
-
-choice :: [Lexer a] -> Lexer a
-choice = foldr (<|>) (fail "choice")
 
 manySeq :: Lexer a -> Lexer () -> Lexer (Seq a)
 manySeq lxr unk = do
@@ -306,8 +292,6 @@ unknown = do
   c <- anyChar
   appendError (YParsec.UnexpectedChar c)
 
--- FIXME: I believe I'd have to use a MonadParse like MegaParsec's to
--- link this with YParsec...
 single :: Char -> Lexer Char
 single c = satisfy (== c)
 
