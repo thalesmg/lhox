@@ -17,6 +17,7 @@ library
           Lhox.Lexer
           Lhox.Parser
           Lhox.Tests
+          Lhox.YoctoParsec
           MyLib
     other-modules:
           Paths_lhox

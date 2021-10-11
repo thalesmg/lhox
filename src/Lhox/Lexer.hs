@@ -13,9 +13,10 @@ module Lhox.Lexer
     Token(..)
   , TokenType(..)
   , LexError(..)
-  , SrcPosition(..)
     -- * utilities
   , scanTokens
+    -- * test utilities
+  , toLexError
   ) where
 
 import           Prelude                   hiding (takeWhile)
@@ -39,74 +40,23 @@ import           Data.Text                 (Text, uncons)
 import qualified Data.Text                 as T
 import qualified Data.Text.Lazy            as TL
 import qualified Data.Text.Lazy.Builder    as TLB
+import           Data.Void                 (Void)
 import           GHC.Generics              (Generic)
 import           Lens.Micro                (to, (.~), (^.))
 import           Lens.Micro.Mtl            (use, (%=), (.=), (<<%=))
 
-newtype SrcPosition = MkSrcPosition { getSrcPosition :: Int }
-  deriving (Eq, Show)
+import           Lhox.YoctoParsec          (try)
+import qualified Lhox.YoctoParsec          as YParsec
 
-data LexerState =
-  MkLexerState { source   :: Text
-               , position :: SrcPosition
-               , errors   :: Seq (LexError, SrcPosition)
-               }
-  deriving (Generic, Eq, Show)
 
-newtype Lexer a =
-  MkLexer {
-    runLexer :: forall r. -- final result type
-                LexerState -- current lexer state
-             -> (LexerState -> a -> Either (LexError, SrcPosition) r) -- success continuation
-             -> (LexerState -> LexError -> Either (LexError, SrcPosition) r) -- failure continuation
-             -> Either (LexError, SrcPosition) r
-  }
+type LexerState = YParsec.ParsecState Text YParsec.SrcPosition Void
 
-instance Functor Lexer where
-  fmap f (MkLexer lxr) = MkLexer \st win lose ->
-    let win' st' a = win st' (f a)
-    in lxr st win' lose
+type Lexer a = YParsec.Parsec Text YParsec.SrcPosition Void a
 
-instance Applicative Lexer where
-  pure x = MkLexer \st win lose ->
-    win st x
-
-  (MkLexer lxrf) <*> (MkLexer lxra) = MkLexer \st winb lose ->
-    let winf st' f = runLexer (fmap f (MkLexer lxra)) st' winb lose
-    in lxrf st winf lose
-
-instance Alternative Lexer where
-  empty = MkLexer \st _win lose -> lose st (ErrorMessage "empty")
-  (MkLexer l1) <|> (MkLexer l2) = MkLexer \st0 win0 lose0 ->
-    let lose' st' err = l2 st0 win0 lose0
-    in l1 st0 win0 lose'
-
-instance Monad Lexer where
-  (MkLexer lxrm) >>= f = MkLexer \st win lose ->
-    let win' st' a = runLexer (f a) st' win lose
-    in lxrm st win' lose
-
-instance MonadFail Lexer where
-  fail msg = MkLexer \st _win lose -> lose st (ErrorMessage (T.pack msg))
-
-instance MonadState LexerState Lexer where
-  get = MkLexer \st win _lose ->
-    win st st
-
-  put st' = MkLexer \st win _lose ->
-    win st' ()
-
-instance MonadError LexError Lexer where
-  throwError e = MkLexer \st _win lose ->
-    lose st e
-
-  catchError (MkLexer lxr) handler = MkLexer \st win lose ->
-    case lxr st win lose of
-      Left (err, _pos) -> runLexer (handler err) st win lose
-      Right a          -> Right a
+type LexError = YParsec.ParserError Void
 
 data Token = MkToken { tokenType :: TokenType
-                     , tokenPos  :: SrcPosition
+                     , tokenPos  :: YParsec.SrcPosition
                      }
   deriving (Eq, Show)
 
@@ -152,51 +102,37 @@ data TokenType =
   | EOF
   deriving (Eq, Show)
 
-data LexError = ErrorMessage Text
-              | UnexpectedEOF
-              | UnexpectedChar Char
-              | UnterminatedString
-  deriving (Eq, Show)
-
-winK :: LexerState -> a -> Either (LexError, SrcPosition) (a, LexerState)
-winK st a = Right (a, st)
-
-loseK :: LexerState -> LexError -> Either (LexError, SrcPosition) a
-loseK st err = Left (err, position st)
-
-scanTokens :: Text -> Either (Seq Token, Seq (LexError, SrcPosition)) (Seq Token)
+scanTokens :: Text -> Either (Seq Token, Seq (LexError, YParsec.SrcPosition)) (Seq Token)
 scanTokens raw =
-  case runLexer (manySeq token ignoredToken <* eof) (lexerState raw) winK loseK of
+  case YParsec.runParsec (manySeq token ignoredToken <* eof)
+         (lexerState raw) YParsec.winK YParsec.loseK of
     Left err -> Left (mempty, Seq.singleton err)
     Right (ts, lexst) ->
-      if null (errors lexst)
-      then Right (ts Seq.|> MkToken EOF (position lexst))
+      if null (YParsec.errors lexst)
+      then Right (ts Seq.|> MkToken EOF (YParsec.position lexst))
       else let moreErrors = squeezeRemainingErrors (lexst & #errors .~ Seq.empty)
-           in Left (ts, errors lexst <> moreErrors)
+           in Left (ts, YParsec.errors lexst <> moreErrors)
 
-squeezeRemainingErrors :: LexerState -> Seq (LexError, SrcPosition)
+squeezeRemainingErrors :: LexerState -> Seq (LexError, YParsec.SrcPosition)
 squeezeRemainingErrors remainingState =
-  case runLexer (many ignoredToken) remainingState winK loseK of
+  case YParsec.runParsec (many ignoredToken) remainingState YParsec.winK YParsec.loseK of
     Left err -> Seq.singleton err
     Right (_, lexst) ->
-      if T.null (source lexst)
-      then errors lexst
+      if T.null (YParsec.source lexst)
+      then YParsec.errors lexst
       else error $ mconcat [ "the impossible has happened!\n"
                            , "state: "
                            , show lexst
                            ]
 
 lexerState :: Text -> LexerState
-lexerState src = MkLexerState { source = src
-                              , position = MkSrcPosition 1
-                              , errors = Seq.empty
-                              }
-
-getLexerPosition :: Lexer SrcPosition
-getLexerPosition = MkLexer \st win _lose -> win st (position st)
+lexerState src = YParsec.MkParsecState { YParsec.source = src
+                                       , YParsec.position = YParsec.MkSrcPosition 1
+                                       , YParsec.errors = Seq.empty
+                                       }
 
 increaseLine :: Lexer ()
-increaseLine = #position %= \(MkSrcPosition l) -> MkSrcPosition (l + 1)
+increaseLine = #position %= \(YParsec.MkSrcPosition l) -> YParsec.MkSrcPosition (l + 1)
 
 peek :: Lexer (Maybe Char)
 peek = use (#source . to (fmap fst . uncons))
@@ -205,7 +141,7 @@ advance :: Lexer Char
 advance = do
   mcs <- use (#source . to uncons)
   case mcs of
-    Nothing -> throwError UnexpectedEOF
+    Nothing -> YParsec.throwParserError YParsec.UnexpectedEOF
     Just (c, src') -> do
       #source .= src'
       when (c == '\n') increaseLine
@@ -214,17 +150,20 @@ advance = do
 isAtEnd :: Lexer Bool
 isAtEnd = isNothing <$> peek
 
-appendError :: LexError -> Lexer ()
+toLexError :: YParsec.CommonError -> LexError
+toLexError = YParsec.MkParserError . Left
+
+appendError :: YParsec.CommonError -> Lexer ()
 appendError err = do
   pos <- use #position
-  #errors %= (Seq.|> (err, pos))
+  #errors %= (Seq.|> (toLexError err, pos))
 
 satisfy :: (Char -> Bool) -> Lexer Char
 satisfy p = do
   mc <- peek
   case mc of
     Nothing ->
-      throwError UnexpectedEOF
+      YParsec.throwParserError YParsec.UnexpectedEOF
     Just c ->
       if p c
       then advance
@@ -232,12 +171,6 @@ satisfy p = do
 
 choice :: [Lexer a] -> Lexer a
 choice = foldr (<|>) (fail "choice")
-
-try :: Lexer a -> Lexer (Maybe a)
-try (MkLexer lxr) = MkLexer \st win lose ->
-  let lose' _st' _err = win st Nothing
-      win' st' a = win st' (Just a)
-  in lxr st win' lose'
 
 manySeq :: Lexer a -> Lexer () -> Lexer (Seq a)
 manySeq lxr unk = do
@@ -302,7 +235,7 @@ whitespace :: Lexer ()
 whitespace = satisfy (`elem` [' ', '\t', '\r', '\n']) $> ()
 
 mkToken :: TokenType -> Lexer Token
-mkToken tt = MkToken tt <$> getLexerPosition
+mkToken tt = MkToken tt <$> YParsec.getParsecPosition
 
 eol :: Lexer ()
 eol = single '\n' $> ()
@@ -352,7 +285,7 @@ takeUntil p = takeUntilM (pure <$> p)
 unknown :: Lexer ()
 unknown = do
   c <- anyChar
-  appendError (UnexpectedChar c)
+  appendError (YParsec.UnexpectedChar c)
 
 single :: Char -> Lexer Char
 single c = satisfy (== c)
@@ -431,12 +364,12 @@ comment = do
 stringLiteral :: Lexer Token
 stringLiteral = do
   single '"'
-  startPos <- getLexerPosition
+  startPos <- YParsec.getParsecPosition
   txt <- takeWhile (/= '"')
   end <- isAtEnd
   if end
     then do
-      appendError UnterminatedString
+      appendError YParsec.UnterminatedString
       mkToken EOF
     else do
       single '"'
